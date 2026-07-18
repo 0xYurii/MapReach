@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MapReach</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup" aria-live="polite">
+      <header class="popup__header">
+        <div>
+          <h1>MapReach</h1>
+          <p class="tagline">Turn Google Maps listings into organized outreach leads.</p>
+        </div>
+        <div class="header-actions">
+          <button id="openTrackerBtn" class="btn btn-secondary" type="button">Tracker</button>
+          <button id="openSettingsBtn" class="btn btn-secondary" type="button">Settings</button>
+        </div>
+      </header>
+
+      <section id="statusArea" class="status" role="status"></section>
+
+      <section id="loadingState" class="state state--loading">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Reading the current Maps listing…</p>
+      </section>
+
+      <section id="nonMapsState" class="state hidden" aria-labelledby="nonMapsTitle">
+        <h2 id="nonMapsTitle">Open Google Maps</h2>
+        <p>Open a business listing in Google Maps, then reopen MapReach.</p>
+        <a class="btn btn-primary" href="https://www.google.com/maps" target="_blank" rel="noreferrer"
+          >Open Google Maps</a
+        >
+      </section>
+
+      <section id="noListingState" class="state hidden" aria-labelledby="noListingTitle">
+        <h2 id="noListingTitle">No business selected</h2>
+        <p>Open an individual business listing, then refresh this popup.</p>
+        <button id="retryNoListingBtn" class="btn btn-primary" type="button">Try again</button>
+      </section>
+
+      <section id="errorState" class="state hidden" aria-labelledby="errorTitle">
+        <h2 id="errorTitle">Couldn’t read this listing</h2>
+        <p>
+          Google Maps may have changed, or this listing may not expose all fields right now. Try refreshing
+          and opening the listing again.
+        </p>
+        <div class="actions-row">
+          <button id="retryErrorBtn" class="btn btn-primary" type="button">Try again</button>
+          <button id="openTrackerFromErrorBtn" class="btn btn-secondary" type="button">Open tracker</button>
+        </div>
+      </section>
+
+      <section id="successState" class="state hidden" aria-labelledby="leadName">
+        <article class="lead-card">
+          <h2 id="leadName"></h2>
+          <p id="leadCategory" class="pill"></p>
+
+          <dl class="lead-meta">
+            <div><dt>Address</dt><dd id="leadAddress">Not found</dd></div>
+            <div><dt>Rating</dt><dd id="leadRating">Not found</dd></div>
+            <div>
+              <dt>Phone</dt>
+              <dd>
+                <span id="leadPhone">Not found</span>
+                <button id="copyPhoneBtn" class="btn-link hidden" type="button">Copy phone</button>
+              </dd>
+            </div>
+            <div>
+              <dt>Website</dt>
+              <dd id="leadWebsiteWrap">
+                <span id="leadWebsite">Not found</span>
+                <a id="openWebsiteLink" class="btn-link hidden" target="_blank" rel="noreferrer">Open</a>
+                <span id="noWebsiteBadge" class="badge badge-warning hidden">No website detected</span>
+                <span id="unknownWebsiteBadge" class="badge badge-muted hidden">Website not confirmed</span>
+              </dd>
+            </div>
+            <div><dt>Source</dt><dd>Google Maps</dd></div>
+          </dl>
+
+          <div id="warningBox" class="warning-box hidden" aria-label="Extraction warnings">
+            <h3>Extraction notes</h3>
+            <ul id="warningList"></ul>
+          </div>
+
+          <div id="duplicateInfo" class="duplicate-info hidden"></div>
+
+          <div class="actions-row">
+            <button id="saveLeadBtn" class="btn btn-primary" type="button">Save lead</button>
+            <button id="markSentBtn" class="btn btn-secondary" type="button">Mark as sent</button>
+          </div>
+        </article>
+
+        <section class="message-box" aria-labelledby="messageTitle">
+          <h3 id="messageTitle">Outreach message</h3>
+          <label for="templateSelect">Template</label>
+          <select id="templateSelect"></select>
+
+          <label for="messageTextarea">Generated message</label>
+          <textarea id="messageTextarea" rows="7"></textarea>
+
+          <div class="actions-row">
+            <button id="generateMessageBtn" class="btn btn-secondary" type="button">Generate message</button>
+            <button id="copyMessageBtn" class="btn btn-primary" type="button">Copy message</button>
+          </div>
+          <p id="copyFeedback" class="copy-feedback hidden">Copied</p>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

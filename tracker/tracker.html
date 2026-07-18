@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MapReach Lead Tracker</title>
+    <link rel="stylesheet" href="tracker.css" />
+  </head>
+  <body>
+    <main class="tracker-page">
+      <header class="topbar">
+        <div>
+          <p class="brand">MapReach</p>
+          <h1>Lead Tracker</h1>
+          <p id="leadCount" class="muted">0 leads</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="exportAllBtn" class="btn btn-secondary" type="button">Export all leads</button>
+          <button id="exportFilteredBtn" class="btn btn-secondary" type="button">Export filtered leads</button>
+          <button id="openSettingsBtn" class="btn btn-secondary" type="button">Settings</button>
+          <button id="clearAllBtn" class="btn btn-danger" type="button">Clear all data</button>
+        </div>
+      </header>
+
+      <section class="toolbar" aria-label="Filters and search">
+        <label>
+          Search
+          <input id="searchInput" type="search" placeholder="Name, category, address, phone, website, notes" />
+        </label>
+
+        <label>
+          Status
+          <select id="statusFilter">
+            <option value="all">All</option>
+          </select>
+        </label>
+
+        <label>
+          Category
+          <select id="categoryFilter">
+            <option value="all">All</option>
+          </select>
+        </label>
+
+        <label>
+          Website
+          <select id="websiteFilter">
+            <option value="all">All</option>
+            <option value="no_website">No website</option>
+            <option value="has_website">Has website</option>
+            <option value="unknown">Website unknown</option>
+          </select>
+        </label>
+
+        <label>
+          Sort
+          <select id="sortSelect"></select>
+        </label>
+
+        <div class="toolbar-meta">
+          <span id="activeFilters">0 active filters</span>
+          <button id="clearFiltersBtn" class="btn btn-secondary" type="button">Clear filters</button>
+        </div>
+      </section>
+
+      <section id="flash" class="flash" aria-live="polite"></section>
+
+      <section id="emptyState" class="panel hidden" aria-labelledby="emptyTitle">
+        <h2 id="emptyTitle">No leads yet</h2>
+        <p>Open Google Maps, select one business listing, and save a lead from the MapReach popup.</p>
+      </section>
+
+      <section id="tableWrap" class="panel hidden" aria-label="Leads table">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Business</th>
+                <th>Category</th>
+                <th>Contact</th>
+                <th>Website</th>
+                <th>Rating</th>
+                <th>Status</th>
+                <th>Saved</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="leadsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="cardsWrap" class="cards hidden" aria-label="Leads cards"></section>
+    </main>
+
+    <dialog id="notesDialog">
+      <form method="dialog" class="notes-form" id="notesForm">
+        <h2>Edit notes</h2>
+        <p id="notesLeadName" class="muted"></p>
+        <textarea id="notesTextarea" rows="8"></textarea>
+        <menu>
+          <button value="cancel" class="btn btn-secondary" type="button" id="cancelNotesBtn">Cancel</button>
+          <button value="save" class="btn btn-primary" type="submit">Save notes</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="clearDialog">
+      <form method="dialog" class="clear-form" id="clearForm">
+        <h2>Clear all local data</h2>
+        <p>This deletes all locally stored leads and cannot be undone.</p>
+        <label>
+          Type DELETE to confirm
+          <input id="clearConfirmInput" type="text" autocomplete="off" />
+        </label>
+        <menu>
+          <button value="cancel" class="btn btn-secondary" type="button" id="cancelClearBtn">Cancel</button>
+          <button value="confirm" class="btn btn-danger" type="submit">Delete all</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script type="module" src="tracker.js"></script>
+  </body>
+</html>

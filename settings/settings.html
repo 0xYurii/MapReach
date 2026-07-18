@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MapReach Settings</title>
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <main class="settings-page">
+      <header class="topbar">
+        <div>
+          <p class="brand">MapReach</p>
+          <h1>Settings</h1>
+        </div>
+        <button id="openTrackerBtn" class="btn btn-secondary" type="button">Open tracker</button>
+      </header>
+
+      <section id="flash" class="flash" aria-live="polite"></section>
+
+      <section class="panel" aria-labelledby="templatesHeading">
+        <div class="panel-header">
+          <h2 id="templatesHeading">Message templates</h2>
+          <button id="addTemplateBtn" class="btn btn-secondary" type="button">Add template</button>
+        </div>
+
+        <p class="muted">Supported variables: ${name}, ${category}, ${address}, ${city}, ${website}, ${rating}, ${reviewCount}</p>
+
+        <div id="templatesList" class="templates-list"></div>
+
+        <div class="panel-actions">
+          <button id="resetDefaultsBtn" class="btn btn-danger" type="button">Reset default templates</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="generalHeading">
+        <h2 id="generalHeading">General behavior</h2>
+
+        <label>
+          Default tracker sort order
+          <select id="defaultSortSelect"></select>
+        </label>
+
+        <label class="checkbox-row">
+          <input id="openTrackerAfterSave" type="checkbox" />
+          Open tracker after saving a lead
+        </label>
+
+        <label class="checkbox-row">
+          <input id="showWarnings" type="checkbox" />
+          Show extraction warnings
+        </label>
+
+        <label class="checkbox-row">
+          <input id="debugMode" type="checkbox" />
+          Debug mode
+        </label>
+
+        <div class="panel-actions">
+          <button id="saveGeneralBtn" class="btn btn-primary" type="button">Save general settings</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="dataHeading">
+        <h2 id="dataHeading">Data management</h2>
+
+        <div class="action-grid">
+          <button id="exportJsonBtn" class="btn btn-secondary" type="button">Export JSON backup</button>
+          <label class="btn btn-secondary file-label">
+            Import JSON backup
+            <input id="importJsonInput" type="file" accept="application/json" hidden />
+          </label>
+        </div>
+
+        <p id="importPreview" class="muted"></p>
+
+        <div class="panel-actions">
+          <button id="applyImportBtn" class="btn btn-primary" type="button" disabled>Merge with existing data</button>
+          <button id="clearAllDataBtn" class="btn btn-danger" type="button">Clear all local data</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="privacyHeading">
+        <h2 id="privacyHeading">Privacy</h2>
+        <p>
+          MapReach stores leads, notes, and templates in this Chrome profile using local extension storage.
+          It does not send your saved lead data to a MapReach server.
+        </p>
+      </section>
+    </main>
+
+    <dialog id="templateDialog">
+      <form method="dialog" id="templateForm" class="template-form">
+        <h2 id="templateDialogTitle">Template</h2>
+
+        <label>
+          Template name
+          <input id="templateNameInput" type="text" required />
+        </label>
+
+        <label>
+          Category keywords (comma-separated)
+          <input id="templateKeywordsInput" type="text" placeholder="restaurant, cafe" />
+        </label>
+
+        <label>
+          Message body
+          <textarea id="templateBodyInput" rows="8" required></textarea>
+        </label>
+
+        <label class="checkbox-row">
+          <input id="templateDefaultInput" type="checkbox" />
+          Use as default template
+        </label>
+
+        <section class="preview-box" aria-labelledby="previewHeading">
+          <h3 id="previewHeading">Live preview</h3>
+          <p id="templatePreview"></p>
+        </section>
+
+        <menu>
+          <button id="cancelTemplateBtn" class="btn btn-secondary" type="button">Cancel</button>
+          <button class="btn btn-primary" type="submit">Save template</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="confirmDialog">
+      <form method="dialog" class="confirm-form" id="confirmForm">
+        <h2 id="confirmTitle">Confirm action</h2>
+        <p id="confirmBody"></p>
+        <menu>
+          <button id="confirmCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+          <button id="confirmOkBtn" class="btn btn-danger" type="submit">Confirm</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script type="module" src="settings.js"></script>
+  </body>
+</html>
