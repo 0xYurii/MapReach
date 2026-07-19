@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MapReach</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <img class="brand-logo" src="../icons/icon48.png" alt="" width="24" height="24" />
+        <div class="brand-text">
+          <h1>MapReach</h1>
+          <p class="tagline">Google Maps → outreach leads</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-refresh" class="icon-btn" type="button" title="Re-read the current listing" aria-label="Re-read the current listing">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.74 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z"/></svg>
+        </button>
+        <button id="btn-tracker" class="text-btn" type="button">Tracker</button>
+        <button id="btn-settings" class="icon-btn" type="button" title="Settings" aria-label="Open settings">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M19.14 12.94a7.5 7.5 0 0 0 .05-.94 7.5 7.5 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7 7 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.55-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.2a.5.5 0 0 0 .12.64l2.03 1.58c-.03.31-.05.62-.05.94 0 .32.02.63.05.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.42.32.66.22l2.39-.96c.5.39 1.04.7 1.62.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.5-.42l.36-2.54c.58-.24 1.12-.55 1.62-.94l2.39.96c.24.1.52.02.66-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+      <!-- A. Loading -->
+      <section id="state-loading" class="state state-centered">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Reading the current Maps listing…</p>
+      </section>
+
+      <!-- B. Not on Google Maps -->
+      <section id="state-not-maps" class="state state-centered" hidden>
+        <div class="state-emoji" aria-hidden="true">🗺️</div>
+        <h2>Open Google Maps</h2>
+        <p>Open a business listing in Google Maps, then reopen this panel.</p>
+        <a id="link-open-maps" class="btn btn-primary" href="https://www.google.com/maps" target="_blank" rel="noreferrer">Open Google Maps</a>
+      </section>
+
+      <!-- C. On Maps but no individual listing -->
+      <section id="state-no-listing" class="state state-centered" hidden>
+        <div class="state-emoji" aria-hidden="true">📍</div>
+        <h2>No business selected</h2>
+        <p>Open an individual business listing, then refresh this panel.</p>
+        <button id="btn-retry-nolisting" class="btn btn-primary" type="button">Try again</button>
+      </section>
+
+      <!-- D. Extraction error -->
+      <section id="state-error" class="state state-centered" hidden>
+        <div class="state-emoji" aria-hidden="true">⚠️</div>
+        <h2>Couldn't read this listing</h2>
+        <p id="error-detail">Google Maps may have changed, or this listing may not expose the data. Try reopening the business, or reload the Maps tab.</p>
+        <div class="btn-row">
+          <button id="btn-retry-error" class="btn btn-primary" type="button">Try again</button>
+          <button id="btn-tracker-error" class="btn btn-ghost" type="button">Open tracker</button>
+        </div>
+      </section>
+
+      <!-- E. Successful extraction -->
+      <section id="state-success" class="state" hidden>
+        <div id="refresh-banner" class="banner" hidden>
+          <span>A different business is now open on Maps.</span>
+          <button id="btn-apply-refresh" class="btn btn-small btn-primary" type="button">Load it</button>
+        </div>
+
+        <article class="lead-card">
+          <div class="lead-head">
+            <h2 id="lead-name" class="lead-name"></h2>
+            <span id="lead-category" class="pill" hidden></span>
+          </div>
+
+          <div id="saved-info" class="saved-info" hidden></div>
+
+          <p id="lead-rating" class="lead-rating" hidden></p>
+          <p id="lead-address" class="lead-line lead-address" hidden></p>
+
+          <div id="phone-row" class="lead-row" hidden>
+            <span class="lead-line" id="lead-phone"></span>
+            <button id="btn-copy-phone" class="btn btn-tiny btn-ghost" type="button">Copy</button>
+          </div>
+
+          <div id="website-row" class="lead-row website-row"></div>
+
+          <p class="source-line">Source: Google Maps</p>
+
+          <div id="warnings-wrap" class="warnings" hidden>
+            <p class="warnings-title">Heads up</p>
+            <ul id="warnings-list"></ul>
+          </div>
+
+          <button id="btn-save" class="btn btn-primary btn-block" type="button">Save lead</button>
+        </article>
+
+        <section class="message-tools" aria-labelledby="message-heading">
+          <h3 id="message-heading">Outreach message</h3>
+
+          <div class="field-grid">
+            <div class="field">
+              <label for="lang-select">Language</label>
+              <select id="lang-select">
+                <option value="auto">Auto (detected)</option>
+                <option value="en">English</option>
+                <option value="fr">Français</option>
+                <option value="ar">العربية</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="template-select">Template</label>
+              <select id="template-select"></select>
+            </div>
+          </div>
+          <p id="template-reason" class="hint" aria-live="polite"></p>
+
+          <label class="sr-label" for="message-text">Message text (editable)</label>
+          <textarea id="message-text" rows="7" spellcheck="true" placeholder="Your message will appear here…"></textarea>
+
+          <div class="btn-row">
+            <button id="btn-copy-message" class="btn btn-primary" type="button">Copy message</button>
+            <button id="btn-mark-sent" class="btn btn-ghost" type="button">Mark as sent</button>
+          </div>
+          <p class="hint subtle">Copying never changes a lead's status — that's always your call.</p>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

@@ -1,435 +1,428 @@
-import { MESSAGE_TYPES, SORT_OPTIONS } from "../utils/constants.js";
+/**
+ * MapReach — Settings controller.
+ *
+ * Manages multilingual templates (CRUD + live preview), general preferences,
+ * the custom social-domain list, and JSON backup / validated import / data
+ * clearing. All persistence goes through the storage layer.
+ */
+
+import { SORT_OPTIONS, SAMPLE_LEAD, LANGUAGES, RTL_LANGUAGES } from '../utils/constants.js';
 import {
-  getTemplates,
-  saveTemplates,
   getSettings,
   saveSettings,
-  seedDefaultsIfNeeded,
-  exportAllData,
-  getLeads,
+  getTemplates,
+  saveTemplates,
+  resetTemplates,
+  buildBackup,
+  importBackupMerge,
   clearAllData,
-  saveLead,
-  getLeadById,
-} from "../utils/storage.js";
-import { getDefaultTemplates, renderTemplate } from "../utils/templates.js";
-import { parseAndValidateBackupJson } from "../utils/validation.js";
-import { findDuplicateLead, mergeLeadData } from "../utils/deduplication.js";
+  seedDefaultsIfNeeded,
+} from '../utils/storage.js';
+import { renderTemplateBody } from '../utils/templates.js';
+import { validateBackup } from '../utils/validation.js';
+import { downloadTextFile } from '../utils/export.js';
 
-const sampleLead = {
-  name: "Riverstone Café",
-  category: "Cafe",
-  address: "22 Market Street, Austin",
-  city: "Austin",
-  website: "https://riverstone.example",
-  rating: 4.7,
-  reviewCount: 128,
-};
+const $ = (id) => document.getElementById(id);
 
 const state = {
-  templates: [],
   settings: null,
-  editingTemplateId: null,
+  templates: [],
+  editingId: null, // null => creating a new template
+  confirmOnOk: null,
   pendingImport: null,
 };
 
-const els = {
-  flash: document.getElementById("flash"),
-  openTrackerBtn: document.getElementById("openTrackerBtn"),
-  templatesList: document.getElementById("templatesList"),
-  addTemplateBtn: document.getElementById("addTemplateBtn"),
-  resetDefaultsBtn: document.getElementById("resetDefaultsBtn"),
-  defaultSortSelect: document.getElementById("defaultSortSelect"),
-  openTrackerAfterSave: document.getElementById("openTrackerAfterSave"),
-  showWarnings: document.getElementById("showWarnings"),
-  debugMode: document.getElementById("debugMode"),
-  saveGeneralBtn: document.getElementById("saveGeneralBtn"),
-  exportJsonBtn: document.getElementById("exportJsonBtn"),
-  importJsonInput: document.getElementById("importJsonInput"),
-  importPreview: document.getElementById("importPreview"),
-  applyImportBtn: document.getElementById("applyImportBtn"),
-  clearAllDataBtn: document.getElementById("clearAllDataBtn"),
-  templateDialog: document.getElementById("templateDialog"),
-  templateForm: document.getElementById("templateForm"),
-  templateDialogTitle: document.getElementById("templateDialogTitle"),
-  templateNameInput: document.getElementById("templateNameInput"),
-  templateKeywordsInput: document.getElementById("templateKeywordsInput"),
-  templateBodyInput: document.getElementById("templateBodyInput"),
-  templateDefaultInput: document.getElementById("templateDefaultInput"),
-  templatePreview: document.getElementById("templatePreview"),
-  cancelTemplateBtn: document.getElementById("cancelTemplateBtn"),
-  confirmDialog: document.getElementById("confirmDialog"),
-  confirmForm: document.getElementById("confirmForm"),
-  confirmTitle: document.getElementById("confirmTitle"),
-  confirmBody: document.getElementById("confirmBody"),
-  confirmCancelBtn: document.getElementById("confirmCancelBtn"),
-  confirmOkBtn: document.getElementById("confirmOkBtn"),
-};
-
-function setFlash(message, isError = false) {
-  els.flash.textContent = message || "";
-  els.flash.style.color = isError ? "#b91c1c" : "#475569";
+/* ---------- toast ---------- */
+let toastTimer = null;
+function toast(text, kind = '') {
+  const el = $('toast');
+  el.textContent = text;
+  el.className = `toast${kind ? ` toast-${kind}` : ''}`;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
 }
 
-function parseKeywords(raw) {
-  return String(raw || "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+/* ---------- templates ---------- */
+function templateSnippet(t) {
+  const body = t.bodies.en || t.bodies.fr || t.bodies.ar || '';
+  return body.length > 120 ? `${body.slice(0, 119)}…` : body;
 }
 
-function showConfirm(title, body, confirmText = "Confirm") {
-  return new Promise((resolve) => {
-    els.confirmTitle.textContent = title;
-    els.confirmBody.textContent = body;
-    els.confirmOkBtn.textContent = confirmText;
-    els.confirmDialog.showModal();
-
-    const onCancel = () => {
-      cleanup();
-      resolve(false);
-    };
-
-    const onSubmit = (event) => {
-      event.preventDefault();
-      cleanup();
-      resolve(true);
-      els.confirmDialog.close("confirm");
-    };
-
-    const cleanup = () => {
-      els.confirmCancelBtn.removeEventListener("click", onCancel);
-      els.confirmForm.removeEventListener("submit", onSubmit);
-    };
-
-    els.confirmCancelBtn.addEventListener("click", onCancel, { once: true });
-    els.confirmForm.addEventListener("submit", onSubmit, { once: true });
-  });
-}
-
-function populateSortSelect() {
-  els.defaultSortSelect.innerHTML = "";
-  SORT_OPTIONS.forEach((option) => {
-    const node = document.createElement("option");
-    node.value = option.value;
-    node.textContent = option.label;
-    els.defaultSortSelect.appendChild(node);
-  });
-}
-
-function renderTemplatesList() {
-  els.templatesList.innerHTML = "";
-
-  state.templates.forEach((template) => {
-    const item = document.createElement("article");
-    item.className = "template-row";
-
-    const head = document.createElement("div");
-    head.className = "template-row-head";
-    const title = document.createElement("h3");
-    title.textContent = template.isDefault ? `${template.name} (Default)` : template.name;
-
-    const actions = document.createElement("div");
-    actions.className = "template-actions";
-
-    const editBtn = document.createElement("button");
-    editBtn.className = "btn btn-secondary";
-    editBtn.type = "button";
-    editBtn.textContent = "Edit";
-    editBtn.addEventListener("click", () => openTemplateDialog(template.id));
-
-    const defaultBtn = document.createElement("button");
-    defaultBtn.className = "btn btn-secondary";
-    defaultBtn.type = "button";
-    defaultBtn.textContent = "Set default";
-    defaultBtn.disabled = template.isDefault;
-    defaultBtn.addEventListener("click", async () => {
-      const next = state.templates.map((tpl) => ({ ...tpl, isDefault: tpl.id === template.id }));
-      await saveTemplates(next);
-      await loadData();
-      setFlash(`Default template changed to ${template.name}.`);
-    });
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "btn btn-danger";
-    deleteBtn.type = "button";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.addEventListener("click", async () => {
-      if (state.templates.length === 1) {
-        setFlash("At least one template is required.", true);
-        return;
-      }
-
-      const confirmed = await showConfirm(
-        "Delete template",
-        `Delete "${template.name}"? This cannot be undone.`,
-        "Delete",
-      );
-      if (!confirmed) return;
-
-      const remaining = state.templates.filter((tpl) => tpl.id !== template.id);
-      if (!remaining.some((tpl) => tpl.isDefault) && remaining.length) {
-        remaining[0].isDefault = true;
-      }
-      await saveTemplates(remaining);
-      await loadData();
-      setFlash(`Deleted template ${template.name}.`);
-    });
-
-    actions.append(editBtn, defaultBtn, deleteBtn);
-    head.append(title, actions);
-
-    const keywords = document.createElement("p");
-    keywords.className = "muted";
-    keywords.textContent = `Keywords: ${(template.categoryKeywords || []).join(", ") || "(none)"}`;
-
-    const body = document.createElement("p");
-    body.textContent = template.body;
-
-    item.append(head, keywords, body);
-    els.templatesList.appendChild(item);
-  });
-}
-
-function renderGeneralSettings() {
-  els.defaultSortSelect.value = state.settings.defaultSort;
-  els.openTrackerAfterSave.checked = Boolean(state.settings.openTrackerAfterSave);
-  els.showWarnings.checked = Boolean(state.settings.showExtractionWarnings);
-  els.debugMode.checked = Boolean(state.settings.debugMode);
-}
-
-function updateTemplatePreview() {
-  const draft = {
-    body: els.templateBodyInput.value,
-  };
-  els.templatePreview.textContent = renderTemplate(draft, sampleLead);
-}
-
-function openTemplateDialog(templateId = null) {
-  state.editingTemplateId = templateId;
-  const template = templateId ? state.templates.find((tpl) => tpl.id === templateId) : null;
-  const isEdit = Boolean(template);
-
-  els.templateDialogTitle.textContent = isEdit ? "Edit template" : "Add template";
-  els.templateNameInput.value = template?.name || "";
-  els.templateKeywordsInput.value = (template?.categoryKeywords || []).join(", ");
-  els.templateBodyInput.value = template?.body || "";
-  els.templateDefaultInput.checked = Boolean(template?.isDefault);
-  updateTemplatePreview();
-  els.templateDialog.showModal();
-}
-
-async function saveTemplateFromDialog() {
-  const id = state.editingTemplateId || `tpl-${crypto.randomUUID()}`;
-  const now = new Date().toISOString();
-  const existing = state.templates.find((tpl) => tpl.id === id);
-
-  const draft = {
-    id,
-    name: els.templateNameInput.value.trim(),
-    categoryKeywords: parseKeywords(els.templateKeywordsInput.value),
-    body: els.templateBodyInput.value.trim(),
-    isDefault: els.templateDefaultInput.checked,
-    createdAt: existing?.createdAt || now,
-    updatedAt: now,
-  };
-
-  if (!draft.name || !draft.body) {
-    setFlash("Template name and body are required.", true);
+function renderTemplates() {
+  const list = $('template-list');
+  list.textContent = '';
+  if (!state.templates.length) {
+    const p = document.createElement('p');
+    p.className = 'card-sub';
+    p.textContent = 'No templates. Add one or reset to defaults.';
+    list.appendChild(p);
     return;
   }
+  for (const t of state.templates) {
+    const item = document.createElement('div');
+    item.className = 'template-item';
 
-  const next = state.templates.map((tpl) => ({ ...tpl }));
-  const index = next.findIndex((tpl) => tpl.id === id);
-  if (index >= 0) next[index] = draft;
-  else next.push(draft);
+    const info = document.createElement('div');
+    info.className = 'template-info';
+    const nameRow = document.createElement('div');
+    nameRow.className = 'template-name';
+    const name = document.createElement('span');
+    name.textContent = t.name;
+    nameRow.appendChild(name);
+    if (t.isDefault) {
+      const b = document.createElement('span');
+      b.className = 'default-badge';
+      b.textContent = 'Default';
+      nameRow.appendChild(b);
+    }
+    if (t.isNoWebsite) {
+      const b = document.createElement('span');
+      b.className = 'nosite-badge';
+      b.textContent = 'Auto: no-website';
+      nameRow.appendChild(b);
+    }
+    info.appendChild(nameRow);
 
-  if (draft.isDefault) {
-    next.forEach((tpl) => {
-      if (tpl.id !== draft.id) tpl.isDefault = false;
-    });
-  } else if (!next.some((tpl) => tpl.isDefault)) {
-    next[0].isDefault = true;
+    if (Array.isArray(t.categoryKeywords) && t.categoryKeywords.length) {
+      const kw = document.createElement('p');
+      kw.className = 'template-keywords';
+      kw.textContent = `Keywords: ${t.categoryKeywords.join(', ')}`;
+      info.appendChild(kw);
+    }
+    const snippet = document.createElement('p');
+    snippet.className = 'template-snippet';
+    snippet.textContent = templateSnippet(t);
+    info.appendChild(snippet);
+
+    const actions = document.createElement('div');
+    actions.className = 'template-item-actions';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn btn-ghost btn-tiny';
+    editBtn.type = 'button';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', () => openTemplateEditor(t.id));
+    actions.appendChild(editBtn);
+
+    if (!t.isDefault) {
+      const defBtn = document.createElement('button');
+      defBtn.className = 'btn btn-ghost btn-tiny';
+      defBtn.type = 'button';
+      defBtn.textContent = 'Make default';
+      defBtn.addEventListener('click', () => makeDefault(t.id));
+      actions.appendChild(defBtn);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-danger-ghost btn-tiny';
+    delBtn.type = 'button';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', () => confirmDeleteTemplate(t));
+    actions.appendChild(delBtn);
+
+    item.appendChild(info);
+    item.appendChild(actions);
+    list.appendChild(item);
+  }
+}
+
+function openTemplateEditor(id) {
+  state.editingId = id;
+  const t = state.templates.find((x) => x.id === id) || null;
+  $('template-editor-title').textContent = t ? 'Edit template' : 'Add template';
+  $('tpl-name').value = t ? t.name : '';
+  $('tpl-keywords').value = t && Array.isArray(t.categoryKeywords) ? t.categoryKeywords.join(', ') : '';
+  $('tpl-default').checked = t ? Boolean(t.isDefault) : false;
+  $('tpl-en').value = t ? t.bodies.en || '' : '';
+  $('tpl-fr').value = t ? t.bodies.fr || '' : '';
+  $('tpl-ar').value = t ? t.bodies.ar || '' : '';
+  $('tpl-preview-lang').value = 'en';
+  updatePreview();
+  $('dialog-template').showModal();
+  setTimeout(() => $('tpl-name').focus(), 30);
+}
+
+function currentEditorBodies() {
+  return { en: $('tpl-en').value, fr: $('tpl-fr').value, ar: $('tpl-ar').value };
+}
+
+function updatePreview() {
+  const lang = $('tpl-preview-lang').value;
+  const bodies = currentEditorBodies();
+  const text = renderTemplateBody(bodies[lang] || '', SAMPLE_LEAD);
+  const el = $('tpl-preview');
+  el.textContent = text || '(empty for this language)';
+  el.setAttribute('dir', RTL_LANGUAGES.includes(lang) ? 'rtl' : 'ltr');
+}
+
+function saveTemplate() {
+  const name = $('tpl-name').value.trim();
+  const bodies = currentEditorBodies();
+  const hasBody = LANGUAGES.some((l) => (bodies[l] || '').trim());
+  if (!name) { toast('Template needs a name', 'error'); return; }
+  if (!hasBody) { toast('Add a message in at least one language', 'error'); return; }
+
+  const keywords = $('tpl-keywords').value.split(',').map((s) => s.trim()).filter(Boolean);
+  const makeDef = $('tpl-default').checked;
+  const now = new Date().toISOString();
+
+  let list = state.templates.slice();
+  if (state.editingId) {
+    list = list.map((t) =>
+      t.id === state.editingId
+        ? { ...t, name, categoryKeywords: keywords, bodies, isDefault: makeDef, updatedAt: now }
+        : { ...t, isDefault: makeDef ? false : t.isDefault },
+    );
+  } else {
+    const newTpl = {
+      id: `tpl-custom-${Date.now().toString(36)}`,
+      name,
+      categoryKeywords: keywords,
+      bodies,
+      isDefault: makeDef,
+      isNoWebsite: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    list = list.map((t) => ({ ...t, isDefault: makeDef ? false : t.isDefault }));
+    list.push(newTpl);
+  }
+  // Guarantee at least one default.
+  if (!list.some((t) => t.isDefault) && list.length) list[0].isDefault = true;
+
+  persistTemplates(list, 'Template saved');
+  $('dialog-template').close();
+}
+
+function makeDefault(id) {
+  const list = state.templates.map((t) => ({ ...t, isDefault: t.id === id }));
+  persistTemplates(list, 'Default template set');
+}
+
+function confirmDeleteTemplate(t) {
+  openConfirm({
+    title: 'Delete template?',
+    message: `“${t.name}” will be removed. You can restore all seed templates with “Reset to defaults”.`,
+    onOk: () => {
+      let list = state.templates.filter((x) => x.id !== t.id);
+      if (!list.some((x) => x.isDefault) && list.length) list[0].isDefault = true;
+      $('dialog-confirm').close();
+      persistTemplates(list, 'Template deleted');
+    },
+  });
+}
+
+async function persistTemplates(list, message) {
+  state.templates = await saveTemplates(list);
+  renderTemplates();
+  toast(message, 'success');
+}
+
+function confirmResetTemplates() {
+  openConfirm({
+    title: 'Reset templates to defaults?',
+    message: 'This replaces your current templates with the built-in English/French/Arabic seed templates.',
+    onOk: async () => {
+      state.templates = await resetTemplates();
+      $('dialog-confirm').close();
+      renderTemplates();
+      toast('Templates reset to defaults', 'success');
+    },
+  });
+}
+
+/* ---------- general settings ---------- */
+function bindGeneralControls() {
+  const sortSel = $('set-sort');
+  for (const s of SORT_OPTIONS) {
+    const opt = document.createElement('option');
+    opt.value = s.value;
+    opt.textContent = s.label;
+    sortSel.appendChild(opt);
   }
 
-  await saveTemplates(next);
-  els.templateDialog.close("save");
-  await loadData();
-  setFlash("Template saved.");
+  sortSel.value = state.settings.defaultSort;
+  $('set-language').value = state.settings.defaultLanguage;
+  $('set-autodetect').checked = state.settings.autoDetectLanguage;
+  $('set-opentracker').checked = state.settings.openTrackerAfterSave;
+  $('set-warnings').checked = state.settings.showWarnings;
+  $('set-debug').checked = state.settings.debug;
+  $('set-social').value = (state.settings.socialDomains || []).join('\n');
+
+  const persist = async (patch) => {
+    state.settings = await saveSettings({ ...state.settings, ...patch });
+    toast('Preferences saved', 'success');
+  };
+
+  sortSel.addEventListener('change', () => persist({ defaultSort: sortSel.value }));
+  $('set-language').addEventListener('change', () => persist({ defaultLanguage: $('set-language').value }));
+  $('set-autodetect').addEventListener('change', () => persist({ autoDetectLanguage: $('set-autodetect').checked }));
+  $('set-opentracker').addEventListener('change', () => persist({ openTrackerAfterSave: $('set-opentracker').checked }));
+  $('set-warnings').addEventListener('change', () => persist({ showWarnings: $('set-warnings').checked }));
+  $('set-debug').addEventListener('change', () => persist({ debug: $('set-debug').checked }));
+
+  $('btn-save-social').addEventListener('click', async () => {
+    const domains = $('set-social').value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+    state.settings = await saveSettings({ ...state.settings, socialDomains: domains });
+    toast(`Saved ${domains.length} custom domain${domains.length === 1 ? '' : 's'}`, 'success');
+  });
 }
 
-function downloadJson(data, prefix = "mapreach-backup") {
-  const date = new Date().toISOString().slice(0, 10);
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${prefix}-${date}.json`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
-}
-
-async function mergeImportedData(payload) {
-  const currentLeads = await getLeads();
-  const mergedLeads = [...currentLeads];
-
-  for (const incoming of payload.leads) {
-    const dedupe = findDuplicateLead(incoming, mergedLeads);
-    if (dedupe.lead) {
-      const merged = mergeLeadData(dedupe.lead, incoming);
-      await saveLead(merged);
-    } else {
-      const existingById = incoming.id ? await getLeadById(incoming.id) : null;
-      if (existingById) {
-        const merged = mergeLeadData(existingById, incoming);
-        await saveLead(merged);
-      } else {
-        await saveLead({ ...incoming, id: incoming.id || crypto.randomUUID() });
-      }
-    }
+/* ---------- data management ---------- */
+async function exportJson() {
+  try {
+    const backup = await buildBackup();
+    const filename = `mapreach-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    downloadTextFile(filename, JSON.stringify(backup, null, 2), 'application/json');
+    toast('Backup downloaded', 'success');
+  } catch {
+    toast('Backup failed', 'error');
   }
-
-  await saveTemplates(payload.templates);
-  await saveSettings(payload.settings);
 }
 
-function bindEvents() {
-  els.openTrackerBtn.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: MESSAGE_TYPES.openTracker });
-  });
+async function handleImportFile(file) {
+  if (!file) return;
+  let parsed;
+  try {
+    const text = await file.text();
+    parsed = JSON.parse(text);
+  } catch {
+    toast('That file is not valid JSON', 'error');
+    return;
+  }
+  const result = validateBackup(parsed);
+  const summary = $('import-summary');
+  const warnings = $('import-warnings');
+  warnings.textContent = '';
 
-  els.addTemplateBtn.addEventListener("click", () => openTemplateDialog());
-
-  els.cancelTemplateBtn.addEventListener("click", () => {
-    els.templateDialog.close("cancel");
-  });
-
-  els.templateBodyInput.addEventListener("input", updateTemplatePreview);
-  els.templateForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    await saveTemplateFromDialog();
-  });
-
-  els.resetDefaultsBtn.addEventListener("click", async () => {
-    const confirmed = await showConfirm(
-      "Reset default templates",
-      "This will replace your current templates with the original defaults.",
-      "Reset",
-    );
-    if (!confirmed) return;
-    await saveTemplates(getDefaultTemplates());
-    await loadData();
-    setFlash("Templates reset to defaults.");
-  });
-
-  els.saveGeneralBtn.addEventListener("click", async () => {
-    try {
-      const next = {
-        defaultSort: els.defaultSortSelect.value,
-        openTrackerAfterSave: els.openTrackerAfterSave.checked,
-        showExtractionWarnings: els.showWarnings.checked,
-        debugMode: els.debugMode.checked,
-      };
-      await saveSettings(next);
-      await loadData();
-      setFlash("General settings saved.");
-    } catch (error) {
-      setFlash(error.message || "Could not save settings.", true);
+  if (!result.ok) {
+    summary.textContent = 'This backup could not be imported:';
+    for (const e of result.errors) {
+      const li = document.createElement('li');
+      li.textContent = e;
+      warnings.appendChild(li);
     }
-  });
-
-  els.exportJsonBtn.addEventListener("click", async () => {
-    try {
-      const data = await exportAllData();
-      downloadJson(data);
-      setFlash(`Exported ${data.leads.length} lead(s) to JSON.`);
-    } catch {
-      setFlash("JSON export failed.", true);
+    $('import-confirm').disabled = true;
+    state.pendingImport = null;
+  } else {
+    summary.textContent = `Ready to merge ${result.counts.leads} lead(s) and ${result.counts.templates} template(s) into your existing data. Duplicate leads will be updated, not duplicated.`;
+    for (const e of result.errors) {
+      const li = document.createElement('li');
+      li.textContent = e;
+      warnings.appendChild(li);
     }
-  });
+    $('import-confirm').disabled = false;
+    state.pendingImport = result.data;
+  }
+  $('dialog-import').showModal();
+}
 
-  els.importJsonInput.addEventListener("change", async () => {
-    const file = els.importJsonInput.files?.[0];
-    if (!file) return;
+async function confirmImport() {
+  if (!state.pendingImport) { $('dialog-import').close(); return; }
+  try {
+    const res = await importBackupMerge(state.pendingImport);
+    $('dialog-import').close();
+    // Reload templates/settings in case they changed.
+    state.templates = await getTemplates();
+    state.settings = await getSettings();
+    renderTemplates();
+    toast(`Imported: ${res.leadsAdded} added, ${res.leadsUpdated} updated`, 'success');
+  } catch {
+    toast('Import failed', 'error');
+  } finally {
+    state.pendingImport = null;
+    $('import-file').value = '';
+  }
+}
 
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      const validation = parseAndValidateBackupJson(parsed);
-
-      if (!validation.valid) {
-        state.pendingImport = null;
-        els.applyImportBtn.disabled = true;
-        els.importPreview.textContent = validation.error;
-        setFlash("Invalid backup file.", true);
-        return;
-      }
-
-      state.pendingImport = validation.payload;
-      els.applyImportBtn.disabled = false;
-      els.importPreview.textContent = `Ready to import: ${validation.payload.leads.length} lead(s), ${validation.payload.templates.length} template(s).`;
-      setFlash("Import file validated.");
-    } catch {
-      state.pendingImport = null;
-      els.applyImportBtn.disabled = true;
-      els.importPreview.textContent = "Could not parse JSON file.";
-      setFlash("Invalid JSON file.", true);
-    }
-  });
-
-  els.applyImportBtn.addEventListener("click", async () => {
-    if (!state.pendingImport) {
-      setFlash("Choose a valid backup file first.", true);
-      return;
-    }
-    try {
-      await mergeImportedData(state.pendingImport);
-      state.pendingImport = null;
-      els.applyImportBtn.disabled = true;
-      els.importPreview.textContent = "";
-      els.importJsonInput.value = "";
-      await loadData();
-      setFlash("Backup merged successfully.");
-    } catch (error) {
-      setFlash(error.message || "Import failed.", true);
-    }
-  });
-
-  els.clearAllDataBtn.addEventListener("click", async () => {
-    const confirmed = await showConfirm(
-      "Clear all local data",
-      "This removes all leads, templates, and settings from local storage and cannot be undone.",
-      "Clear all",
-    );
-    if (!confirmed) return;
-
-    try {
+function confirmClearAll() {
+  openConfirm({
+    title: 'Clear ALL local data?',
+    message: 'This permanently deletes every lead, template and setting stored by MapReach in this Chrome profile. Defaults will be re-seeded. This cannot be undone.',
+    requireType: true,
+    onOk: async () => {
       await clearAllData();
-      await loadData();
-      setFlash("All local data cleared.");
-    } catch (error) {
-      setFlash(error.message || "Could not clear data.", true);
-    }
+      await seedDefaultsIfNeeded();
+      $('dialog-confirm').close();
+      state.settings = await getSettings();
+      state.templates = await getTemplates();
+      bindGeneralValues();
+      renderTemplates();
+      toast('All data cleared and defaults restored', 'success');
+    },
   });
 }
 
-async function loadData() {
-  const [templates, settings] = await Promise.all([getTemplates(), getSettings()]);
-  state.templates = templates;
-  state.settings = settings;
-  renderTemplatesList();
-  renderGeneralSettings();
+/** Re-apply setting values to the general controls (after a reset). */
+function bindGeneralValues() {
+  $('set-sort').value = state.settings.defaultSort;
+  $('set-language').value = state.settings.defaultLanguage;
+  $('set-autodetect').checked = state.settings.autoDetectLanguage;
+  $('set-opentracker').checked = state.settings.openTrackerAfterSave;
+  $('set-warnings').checked = state.settings.showWarnings;
+  $('set-debug').checked = state.settings.debug;
+  $('set-social').value = (state.settings.socialDomains || []).join('\n');
 }
 
+/* ---------- confirm dialog ---------- */
+function openConfirm({ title, message, requireType = false, onOk }) {
+  $('confirm-title').textContent = title;
+  $('confirm-message').textContent = message;
+  const typeWrap = $('confirm-type-wrap');
+  const typeInput = $('confirm-type-input');
+  const okBtn = $('confirm-ok');
+  typeWrap.hidden = !requireType;
+  typeInput.value = '';
+  okBtn.disabled = requireType;
+  state.confirmOnOk = onOk;
+  $('dialog-confirm').showModal();
+  if (requireType) {
+    typeInput.oninput = () => { okBtn.disabled = typeInput.value.trim().toUpperCase() !== 'DELETE'; };
+    setTimeout(() => typeInput.focus(), 30);
+  } else {
+    setTimeout(() => okBtn.focus(), 30);
+  }
+}
+
+/* ---------- wiring ---------- */
+function wireEvents() {
+  $('btn-tracker').addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('tracker/tracker.html') });
+  });
+
+  $('btn-add-template').addEventListener('click', () => openTemplateEditor(null));
+  $('btn-reset-templates').addEventListener('click', confirmResetTemplates);
+
+  $('tpl-save').addEventListener('click', saveTemplate);
+  $('tpl-cancel').addEventListener('click', () => $('dialog-template').close());
+  $('tpl-preview-lang').addEventListener('change', updatePreview);
+  for (const idv of ['tpl-en', 'tpl-fr', 'tpl-ar']) {
+    $(idv).addEventListener('input', updatePreview);
+  }
+
+  $('btn-export-json').addEventListener('click', exportJson);
+  $('import-file').addEventListener('change', (e) => handleImportFile(e.target.files && e.target.files[0]));
+  $('import-cancel').addEventListener('click', () => { $('dialog-import').close(); $('import-file').value = ''; });
+  $('import-confirm').addEventListener('click', confirmImport);
+
+  $('btn-clear-all').addEventListener('click', confirmClearAll);
+
+  $('confirm-ok').addEventListener('click', () => { if (state.confirmOnOk) state.confirmOnOk(); });
+  $('confirm-cancel').addEventListener('click', () => $('dialog-confirm').close());
+}
+
+/* ---------- init ---------- */
 async function init() {
-  await seedDefaultsIfNeeded();
-  populateSortSelect();
-  bindEvents();
-  await loadData();
+  try {
+    await seedDefaultsIfNeeded();
+  } catch {
+    /* non-fatal */
+  }
+  state.settings = await getSettings();
+  state.templates = await getTemplates();
+  wireEvents();
+  bindGeneralControls();
+  renderTemplates();
 }
 
-init().catch((error) => {
-  setFlash("Settings failed to load.", true);
-  console.error(error);
-});
+document.addEventListener('DOMContentLoaded', init);

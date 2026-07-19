@@ -1,139 +1,206 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MapReach Settings</title>
+    <title>MapReach — Settings</title>
     <link rel="stylesheet" href="settings.css" />
   </head>
   <body>
-    <main class="settings-page">
-      <header class="topbar">
+    <header class="app-header">
+      <div class="brand">
+        <img class="brand-logo" src="../icons/icon48.png" alt="" width="28" height="28" />
         <div>
-          <p class="brand">MapReach</p>
-          <h1>Settings</h1>
+          <h1>MapReach</h1>
+          <p class="subtitle">Settings</p>
         </div>
-        <button id="openTrackerBtn" class="btn btn-secondary" type="button">Open tracker</button>
-      </header>
+      </div>
+      <div class="header-actions">
+        <button id="btn-tracker" class="btn btn-ghost" type="button">Open tracker</button>
+      </div>
+    </header>
 
-      <section id="flash" class="flash" aria-live="polite"></section>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-      <section class="panel" aria-labelledby="templatesHeading">
-        <div class="panel-header">
-          <h2 id="templatesHeading">Message templates</h2>
-          <button id="addTemplateBtn" class="btn btn-secondary" type="button">Add template</button>
+    <main class="app-main">
+      <!-- A. Templates -->
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h2>Message templates</h2>
+            <p class="card-sub">Each template has an English, French and Arabic version. Variables:
+              <code>${name}</code> <code>${category}</code> <code>${address}</code> <code>${city}</code>
+              <code>${website}</code> <code>${rating}</code> <code>${reviewCount}</code>
+            </p>
+          </div>
+          <div class="card-actions">
+            <button id="btn-add-template" class="btn btn-primary" type="button">Add template</button>
+            <button id="btn-reset-templates" class="btn btn-ghost" type="button">Reset to defaults</button>
+          </div>
         </div>
-
-        <p class="muted">Supported variables: ${name}, ${category}, ${address}, ${city}, ${website}, ${rating}, ${reviewCount}</p>
-
-        <div id="templatesList" class="templates-list"></div>
-
-        <div class="panel-actions">
-          <button id="resetDefaultsBtn" class="btn btn-danger" type="button">Reset default templates</button>
-        </div>
+        <div id="template-list" class="template-list"></div>
       </section>
 
-      <section class="panel" aria-labelledby="generalHeading">
-        <h2 id="generalHeading">General behavior</h2>
-
-        <label>
-          Default tracker sort order
-          <select id="defaultSortSelect"></select>
-        </label>
-
-        <label class="checkbox-row">
-          <input id="openTrackerAfterSave" type="checkbox" />
-          Open tracker after saving a lead
-        </label>
-
-        <label class="checkbox-row">
-          <input id="showWarnings" type="checkbox" />
-          Show extraction warnings
-        </label>
-
-        <label class="checkbox-row">
-          <input id="debugMode" type="checkbox" />
-          Debug mode
-        </label>
-
-        <div class="panel-actions">
-          <button id="saveGeneralBtn" class="btn btn-primary" type="button">Save general settings</button>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="dataHeading">
-        <h2 id="dataHeading">Data management</h2>
-
-        <div class="action-grid">
-          <button id="exportJsonBtn" class="btn btn-secondary" type="button">Export JSON backup</button>
-          <label class="btn btn-secondary file-label">
-            Import JSON backup
-            <input id="importJsonInput" type="file" accept="application/json" hidden />
+      <!-- B. General behavior -->
+      <section class="card">
+        <h2>General behavior</h2>
+        <div class="settings-grid">
+          <label class="setting">
+            <span class="setting-label">Default tracker sort</span>
+            <select id="set-sort"></select>
+          </label>
+          <label class="setting">
+            <span class="setting-label">Default message language</span>
+            <select id="set-language">
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="ar">العربية</option>
+            </select>
+          </label>
+          <label class="setting checkbox">
+            <input id="set-autodetect" type="checkbox" />
+            <span><span class="setting-label">Auto-detect message language</span>
+              <span class="setting-hint">Guess AR/FR/EN from the listing; you can still override per lead.</span></span>
+          </label>
+          <label class="setting checkbox">
+            <input id="set-opentracker" type="checkbox" />
+            <span><span class="setting-label">Open tracker after saving a lead</span></span>
+          </label>
+          <label class="setting checkbox">
+            <input id="set-warnings" type="checkbox" />
+            <span><span class="setting-label">Show extraction warnings</span></span>
+          </label>
+          <label class="setting checkbox">
+            <input id="set-debug" type="checkbox" />
+            <span><span class="setting-label">Debug mode</span>
+              <span class="setting-hint">Verbose console logs (advanced).</span></span>
           </label>
         </div>
+      </section>
 
-        <p id="importPreview" class="muted"></p>
-
-        <div class="panel-actions">
-          <button id="applyImportBtn" class="btn btn-primary" type="button" disabled>Merge with existing data</button>
-          <button id="clearAllDataBtn" class="btn btn-danger" type="button">Clear all local data</button>
+      <!-- Social domains -->
+      <section class="card">
+        <h2>Website detection</h2>
+        <p class="card-sub">Domains listed here are treated as “social media only”, not a real website
+          (in addition to MapReach's built-in list such as facebook.com, instagram.com, wa.me). One per line.</p>
+        <textarea id="set-social" rows="4" placeholder="e.g. booksy.com&#10;fresha.com"></textarea>
+        <div class="row-actions">
+          <button id="btn-save-social" class="btn btn-primary" type="button">Save domains</button>
         </div>
       </section>
 
-      <section class="panel" aria-labelledby="privacyHeading">
-        <h2 id="privacyHeading">Privacy</h2>
-        <p>
-          MapReach stores leads, notes, and templates in this Chrome profile using local extension storage.
-          It does not send your saved lead data to a MapReach server.
-        </p>
+      <!-- C. Data management -->
+      <section class="card">
+        <h2>Data management</h2>
+        <div class="data-actions">
+          <div class="data-block">
+            <h3>Backup</h3>
+            <p class="card-sub">Download all leads, templates and settings as a JSON file.</p>
+            <button id="btn-export-json" class="btn btn-ghost" type="button">Export JSON backup</button>
+          </div>
+          <div class="data-block">
+            <h3>Restore</h3>
+            <p class="card-sub">Import a JSON backup. It is validated first and <strong>merged</strong> with your
+              existing data (duplicate detection still applies).</p>
+            <label class="file-btn btn btn-ghost">
+              <input id="import-file" type="file" accept="application/json,.json" hidden />
+              Choose backup file…
+            </label>
+          </div>
+          <div class="data-block danger-block">
+            <h3>Danger zone</h3>
+            <p class="card-sub">Permanently delete all locally stored MapReach data.</p>
+            <button id="btn-clear-all" class="btn btn-danger-ghost" type="button">Clear all local data</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- D. Privacy -->
+      <section class="card privacy">
+        <h2>Privacy</h2>
+        <p>MapReach stores leads, notes, and templates in this Chrome profile using local extension storage.
+          It does not send your saved lead data to a MapReach server.</p>
       </section>
     </main>
 
-    <dialog id="templateDialog">
-      <form method="dialog" id="templateForm" class="template-form">
-        <h2 id="templateDialogTitle">Template</h2>
-
-        <label>
-          Template name
-          <input id="templateNameInput" type="text" required />
+    <!-- Template editor -->
+    <dialog id="dialog-template" class="dialog">
+      <div class="dialog-body">
+        <h2 id="template-editor-title">Edit template</h2>
+        <div class="field">
+          <label for="tpl-name">Template name</label>
+          <input id="tpl-name" type="text" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="tpl-keywords">Category keywords (comma-separated)</label>
+          <input id="tpl-keywords" type="text" autocomplete="off" placeholder="restaurant, cafe, food" />
+        </div>
+        <label class="setting checkbox compact">
+          <input id="tpl-default" type="checkbox" />
+          <span class="setting-label">Use as the default template</span>
         </label>
 
-        <label>
-          Category keywords (comma-separated)
-          <input id="templateKeywordsInput" type="text" placeholder="restaurant, cafe" />
-        </label>
+        <div class="lang-editors">
+          <div class="field">
+            <label for="tpl-en">English</label>
+            <textarea id="tpl-en" rows="4"></textarea>
+          </div>
+          <div class="field">
+            <label for="tpl-fr">Français</label>
+            <textarea id="tpl-fr" rows="4"></textarea>
+          </div>
+          <div class="field">
+            <label for="tpl-ar">العربية</label>
+            <textarea id="tpl-ar" rows="4" dir="rtl"></textarea>
+          </div>
+        </div>
 
-        <label>
-          Message body
-          <textarea id="templateBodyInput" rows="8" required></textarea>
-        </label>
+        <div class="preview">
+          <div class="preview-head">
+            <span>Live preview</span>
+            <select id="tpl-preview-lang">
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="ar">العربية</option>
+            </select>
+          </div>
+          <p id="tpl-preview" class="preview-text"></p>
+        </div>
 
-        <label class="checkbox-row">
-          <input id="templateDefaultInput" type="checkbox" />
-          Use as default template
-        </label>
-
-        <section class="preview-box" aria-labelledby="previewHeading">
-          <h3 id="previewHeading">Live preview</h3>
-          <p id="templatePreview"></p>
-        </section>
-
-        <menu>
-          <button id="cancelTemplateBtn" class="btn btn-secondary" type="button">Cancel</button>
-          <button class="btn btn-primary" type="submit">Save template</button>
-        </menu>
-      </form>
+        <div class="dialog-actions">
+          <button id="tpl-cancel" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="tpl-save" class="btn btn-primary" type="button">Save template</button>
+        </div>
+      </div>
     </dialog>
 
-    <dialog id="confirmDialog">
-      <form method="dialog" class="confirm-form" id="confirmForm">
-        <h2 id="confirmTitle">Confirm action</h2>
-        <p id="confirmBody"></p>
-        <menu>
-          <button id="confirmCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
-          <button id="confirmOkBtn" class="btn btn-danger" type="submit">Confirm</button>
-        </menu>
-      </form>
+    <!-- Import preview -->
+    <dialog id="dialog-import" class="dialog">
+      <div class="dialog-body">
+        <h2>Import backup</h2>
+        <p id="import-summary" class="dialog-sub"></p>
+        <ul id="import-warnings" class="import-warnings"></ul>
+        <div class="dialog-actions">
+          <button id="import-cancel" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="import-confirm" class="btn btn-primary" type="button">Merge into my data</button>
+        </div>
+      </div>
+    </dialog>
+
+    <!-- Generic confirm -->
+    <dialog id="dialog-confirm" class="dialog">
+      <div class="dialog-body">
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-message" class="dialog-sub"></p>
+        <div id="confirm-type-wrap" hidden>
+          <label for="confirm-type-input">Type <strong>DELETE</strong> to confirm</label>
+          <input id="confirm-type-input" type="text" autocomplete="off" />
+        </div>
+        <div class="dialog-actions">
+          <button id="confirm-cancel" class="btn btn-ghost" type="button">Cancel</button>
+          <button id="confirm-ok" class="btn btn-danger" type="button">Confirm</button>
+        </div>
+      </div>
     </dialog>
 
     <script type="module" src="settings.js"></script>

@@ -1,2 +1,19 @@
-*.zip
+# OS / editor cruft
 .DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Packaged builds
+*.zip
+
+# Local notes
+NOTES.local.md
+
+# Node (not used by the extension itself, but avoids accidental commits)
+node_modules/
+package-lock.json
+
+# NOTE: icons/*.png ARE committed — they are placeholder assets you can replace.
