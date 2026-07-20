@@ -33,6 +33,11 @@
 }
 
 * { box-sizing: border-box; }
+
+/* The [hidden] attribute must always win over component display rules
+   (e.g. .empty / .btn set display, which would otherwise defeat it). */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0; padding: 0; background: var(--bg); color: var(--text);
   font-family: var(--font); font-size: 14px; line-height: 1.45;

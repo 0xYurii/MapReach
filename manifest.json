@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MapReach",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A personal Google Maps lead tracker and outreach assistant",
   "minimum_chrome_version": "114",
   "icons": {

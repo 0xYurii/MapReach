@@ -30,6 +30,10 @@
 
 * { box-sizing: border-box; }
 
+/* The [hidden] attribute must always win over component display rules
+   (e.g. .state / .banner / .btn set display, which would otherwise defeat it). */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
